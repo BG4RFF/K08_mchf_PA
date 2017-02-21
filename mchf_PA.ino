@@ -36,6 +36,9 @@ void setup() {
   {
     digitalWrite(a, HIGH); //setze die Ausgänge für den TX-Filter auf High, da Relais mit 0 angesteuert werden
   }
+
+  switch_band(PA.band); //setze initial den höchsten TX-Filter! 
+  
   for (int a=29; a<43; a++)
   {
     digitalWrite(a, LOW); //setze die Ausgänge für die bistabilen ATU-Relais auf LOW
@@ -58,7 +61,7 @@ void setup() {
   set_Indu(0);
   
   
-  FreqCount.begin(10); //Den Frequenzzaehler starten
+  FreqCount.begin(1); //Den Frequenzzaehler starten  Torzeit=1ms -> 7500 entspr. 7.500MHZ
   analogReference(DEFAULT);  //Nutzen der 5V als Analogreferenzquelle
 
 }
@@ -69,7 +72,7 @@ void loop() {
   
   PA.Fwd_Pwr_mW = getFwdPwr(Pvor_input);
   PA.Ref_Pwr_mW = getRefPwr(Prueck_input);
-  PA.VSWR=SWR(PA.Fwd_Pwr_mW,PA.Ref_Pwr_mW);
+  if (PA.Fwd_Pwr_mW > 5) PA.VSWR=SWR(PA.Fwd_Pwr_mW,PA.Ref_Pwr_mW);
   PA.current=get_current();
      
     
@@ -89,27 +92,34 @@ void loop() {
         if (PA.PTT_was_on==false)
         { 
           PA.PTT_was_on=true;
-          delay(100);
+          //delay(10);
           
-          //PA.freq=get_freq();
-          PA.freq=3.6;
-          current_band=get_band(PA.freq); //Achtung anpassen!!!!! - aktuelles Band der gemessenen Frequenz ermitteln
-          if (current_band!=PA.band)      // hat die aktuelle Frequenz den aktiven Filterbereich verlassen?
-          { 
-            PA.active=false;            //Vermeiden, dass in das falsche Filter gearbeitet wird
-            switch_band(current_band);  //Filter: Bandwechsel!
-            PA.band=current_band;       // im PA-Status neues Band speichern
-            delay(100);
-          PA.active=true;
-          digitalWrite(50, HIGH);
-          }
-          else
+          PA.freq=get_freq();
+          //PA.freq=3.6;
+          if (PA.freq > 0.0)
           {
-          //Band ist noch korrekt
-          PA.active=true;
-          digitalWrite(50, HIGH);   
+          
+            current_band=get_band(PA.freq); //Achtung anpassen!!!!! - aktuelles Band der gemessenen Frequenz ermitteln
+            if (current_band!=PA.band)      // hat die aktuelle Frequenz den aktiven Filterbereich verlassen?
+            { 
+              digitalWrite(50,LOW);
+              PA.active=false;            //Vermeiden, dass in das falsche Filter gearbeitet wird
+              delay(30);
+              switch_band(current_band);  //Filter: Bandwechsel!
+              PA.band=current_band;       // im PA-Status neues Band speichern
+              delay(30);
+            PA.active=true;
+            digitalWrite(50, HIGH);
+            }
+            else
+            {
+            //Band ist noch korrekt
+            PA.active=true;
+            digitalWrite(50, HIGH);   
+            }
           }
         }
+        
     }
   else
     {

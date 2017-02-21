@@ -37,9 +37,13 @@ typedef struct PA_State
 void refresh_lcd(float VSWR, float Pvor_mw, float Prueck_mw, float freq, int band, float current, float temp, bool PTT_in, bool active){
 
   lcd.setCursor(0, 1);
-  lcd.print("SWR=");
+  lcd.print("SWR=      ");
   lcd.setCursor(5, 1);
-  lcd.print(VSWR,1);
+  
+  if (VSWR > 9.9)
+    lcd.print(VSWR,0);
+   else
+   lcd.print(VSWR,1);
   //lcd.setCursor(9, 1);
   //lcd.print("       ");
   
@@ -86,20 +90,41 @@ void refresh_lcd(float VSWR, float Pvor_mw, float Prueck_mw, float freq, int ban
 
 }
 
-float get_freq()  //den Zähler zwei mal auslesen, um sicherzustellen, dass wir ein komplettes Interval gezaehlt haben
+float get_freq()  
 {
-  unsigned long count=0;
-  do; while (!FreqCount.available()); 
+  float count;
+  float count_buff[3];
+  int num=0;
+  
+  do //solange den Zaehler einlesen, bis HF groesser 1.6MHZ anliegt oder 200ms (200 * 1ms Torzeit) verstrichen sind
+  {
+    do; while (!FreqCount.available());  
     
-     count = FreqCount.read();
+     count_buff[0] = 8.0*((float)(FreqCount.read())/1000.0);  // zunaechst einmal den Frequenzzaehler leeren, um Teilzaehlung zu vermeiden
+     num++; 
+    
+  } while ((count_buff[0]<1.6)&&num<200);
+  
+  if (count_buff[0] >= 1.6)  //wurde HF gesehen, dann gehts weiter...
+  {
+    for (int i=0; i<3; i++) // drei mal den Zaehler lesen
+      {
+        
+        do; while (!FreqCount.available()); 
+        count_buff[i] = 8.0*((float)(FreqCount.read())/1000.0);    
       
-  do; while (!FreqCount.available()); 
-    
-     count = FreqCount.read();
+      }
+  
+    count = (count_buff[0]+count_buff[1]+count_buff[2])/3;
+    if ((abs(count_buff[0]-count)+abs(count_buff[1]-count)+abs(count_buff[2]-count))/3.0/count>0.05) count=-2.0; // bei mittlerer Abweichnung
+                                                                                                                //der Einzelmessungen > 5%, Messung ungültig, return -2 
       
- 
-    
-  return (8*(float)count/10000.0);
+  }
+  else count=-1.0; //innerhalb 200ms keine HF gesehen
+  Serial.println(count,5);
+
+  
+  return (count);
     
 }
 
@@ -158,7 +183,7 @@ float get_current()
 {
   float I_dc=0;
 
-  I_dc= (1.0*(510-analogRead(2)))/13.3;
+  I_dc= (1.0*abs(513-analogRead(2)))/13.3;
 
    return I_dc;
 
